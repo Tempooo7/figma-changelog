@@ -1,0 +1,20 @@
+{
+  "projectName": "",
+  "watchedPagePrefixes": [],
+  "maxPicturesPerUpdate": 6,
+  "imageScale": 2,
+  "maxLinesPerFrame": 8,
+  "timezone": "UTC",
+  "labels": {
+    "before": "Before",
+    "after": "After",
+    "new": "New",
+    "deleted": "Deleted",
+    "openInFigma": "Open in Figma"
+  },
+  "channels": {
+    "gchat": { "enabled": true },
+    "slack": { "enabled": true, "threads": true },
+    "telegram": { "enabled": true }
+  }
+}

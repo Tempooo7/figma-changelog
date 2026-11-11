@@ -1,0 +1,93 @@
+name: Figma changelog
+
+on:
+  schedule:
+    # Every hour, every day, around the clock (cron is in UTC; Libya is UTC+2).
+    # Minute 7 instead of 0: GitHub is busiest on the hour and may delay or skip those runs.
+    # To limit it to work hours again (08–18 Libya, Sun–Thu): '7 6-16 * * 0-4'
+    - cron: '7 * * * *'
+  # Adds a "Run workflow" button in the Actions tab.
+  workflow_dispatch:
+
+# Never run two at once; a new run waits for the previous one to finish.
+concurrency:
+  group: figma-changelog
+  cancel-in-progress: false
+
+permissions:
+  contents: write # to commit state.json, CHANGELOG.md and pictures back to the repo
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # A fresh copy without secrets skips quietly instead of failing every hour.
+      - name: Is it set up?
+        id: setup
+        env:
+          FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+          FIGMA_FILE_KEY: ${{ secrets.FIGMA_FILE_KEY }}
+        run: |
+          if [ -n "$FIGMA_TOKEN" ] && [ -n "$FIGMA_FILE_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Not set up yet: add the FIGMA_TOKEN and FIGMA_FILE_KEY secrets (see README). Skipping this run."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Self-check
+        if: steps.setup.outputs.ready == 'true'
+        run: npm test
+
+      - name: Check Figma and post updates
+        id: run
+        if: steps.setup.outputs.ready == 'true'
+        env:
+          FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+          FIGMA_FILE_KEY: ${{ secrets.FIGMA_FILE_KEY }}
+          # Channels: each one is on only if its secrets exist.
+          GCHAT_WEBHOOK_URL: ${{ secrets.GCHAT_WEBHOOK_URL }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_TOPIC_ID: ${{ secrets.TELEGRAM_TOPIC_ID }}
+        run: |
+          set +e
+          node src/index.js
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+
+      # Runs even if a channel failed, so the progress of the channels that worked is kept.
+      - name: Save state, changelog and pictures
+        if: always() && steps.setup.outputs.ready == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for p in state.json CHANGELOG.md changelog-images; do
+            [ -e "$p" ] && git add "$p"
+          done
+          if git diff --cached --quiet; then
+            echo "Nothing new to save."
+            exit 0
+          fi
+          git commit -m "Changelog update [skip ci]"
+          for attempt in 1 2 3; do
+            git push && exit 0
+            echo "Push rejected, pulling and retrying ($attempt/3)"
+            git pull --rebase
+          done
+          exit 1
+
+      - name: Mark the run as failed if something went wrong
+        if: steps.setup.outputs.ready == 'true' && steps.run.outputs.code != '0'
+        run: |
+          echo "The run reported a problem (exit code ${{ steps.run.outputs.code }}). See 'Check Figma and post updates' above."
+          exit 1

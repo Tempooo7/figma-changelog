@@ -1,0 +1,16 @@
+{
+  "name": "figma-changelog",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Watches a Figma file for new versions and posts a change summary with before/after pictures to Google Chat, Slack and/or Telegram.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dry-run": "node src/index.js --dry-run",
+    "test": "node --test"
+  }
+}

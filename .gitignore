@@ -1,0 +1,8 @@
+# Secrets — never commit
+.env
+
+# Local dry-run output
+.dry-run/
+
+node_modules/
+.DS_Store

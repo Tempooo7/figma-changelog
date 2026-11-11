@@ -1,0 +1,30 @@
+<style>
+  body { font: 12px/1.4 Inter, system-ui, sans-serif; margin: 12px; color: #1e1e1e; }
+  p { margin: 0 0 8px; }
+  textarea { width: 100%; height: 300px; box-sizing: border-box; font: 11px/1.4 ui-monospace, Menlo, monospace; }
+  .row { display: flex; gap: 8px; margin-top: 8px; }
+  button { padding: 6px 12px; border-radius: 6px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
+  button.primary { background: #0d99ff; color: #fff; border-color: #0d99ff; }
+</style>
+<p id="info">Collecting variables…</p>
+<textarea id="out" readonly></textarea>
+<div class="row">
+  <button class="primary" id="copy">Copy</button>
+  <button id="close">Close</button>
+</div>
+<p style="margin-top:8px;color:#666">Paste this into <b>variables-map.json</b> in the figma-changelog repo (replace everything in that file). Run again when you add or rename tokens.</p>
+<script>
+  onmessage = (e) => {
+    const m = e.data.pluginMessage;
+    document.getElementById('out').value = m.json;
+    document.getElementById('info').textContent = `${m.local} local variable(s), ${m.library} from libraries.`;
+  };
+  document.getElementById('copy').onclick = () => {
+    const t = document.getElementById('out');
+    t.select();
+    document.execCommand('copy');
+    parent.postMessage({ pluginMessage: 'copied' }, '*');
+  };
+  parent.postMessage({ pluginMessage: 'ready' }, '*');
+  document.getElementById('close').onclick = () => parent.postMessage({ pluginMessage: 'close' }, '*');
+</script>
