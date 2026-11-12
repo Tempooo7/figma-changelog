@@ -362,7 +362,7 @@ Unknown variables fall back to the style name, then hex. The plugin has no netwo
 
 ![Schedule](docs/diagrams/06-schedule.png)
 
-The workflow runs **every hour at :07, every day** (minute 7 because GitHub is busiest on the hour).
+The workflow is scheduled **every hour at :07, every day** (minute 7 because GitHub is busiest on the hour). GitHub may start it late or skip an hour; see [Make it run on time](#make-it-run-on-time-optional-recommended).
 
 How long until a message appears depends on when Figma creates a version:
 
@@ -373,6 +373,51 @@ How long until a message appears depends on when Figma creates a version:
 | **⌘⌥S**, then **Run workflow** | ~1 minute |
 
 If several versions piled up, each one gets its own message, oldest first. Named versions show their name and description in italics.
+
+### Make it run on time (optional, recommended)
+
+GitHub's schedule is **best effort**: runs can start late or be skipped, and a new repo may get no scheduled runs at all for hours. Nothing is lost when that happens (the next run posts every version it missed), but messages arrive late.
+
+For runs that start on time, let the free service [cron-job.org](https://cron-job.org) start the workflow every hour. GitHub runs those requests right away. Keep the GitHub schedule as a backup: two runs never overlap, and a second run just finds nothing new.
+
+**1. Create a GitHub token that can only start this workflow**
+
+1. Open [github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new).
+2. **Token name:** `figma-changelog trigger`.
+3. **Expiration:** pick a fixed option such as **90 days** or **1 year** and note the date.
+   > If **Generate token** does nothing when you click it, the expiration is the cause: choosing **No expiration** can leave a hidden empty date field that blocks the form. Pick a fixed option instead.
+4. **Repository access:** **Only select repositories** → your copy of this repo.
+5. **Permissions › Repository permissions › Actions:** **Read and write**. Leave everything else as it is.
+6. **Generate token** and copy it with the copy button (GitHub shows it only once). Don't paste it anywhere but cron-job.org.
+
+To check the token, run this in Terminal (it asks for the token without showing it; `200` means it works, `401` means it's wrong):
+
+```bash
+printf "Paste token: "; read -rs T; echo; curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $T" https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/actions/workflows; unset T
+```
+
+**2. Create the cron job**
+
+On cron-job.org, **Create cronjob**:
+
+| Field | Value |
+|---|---|
+| **URL** | `https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/actions/workflows/changelog.yml/dispatches` |
+| **Execution schedule** | Every 1 hour (any minute works) |
+| **Advanced › Request method** | `POST` |
+| **Advanced › Headers** | `Authorization` = `Bearer ` + your token (one space after `Bearer`)<br>`Accept` = `application/vnd.github+json`<br>`User-Agent` = `figma-changelog-cron` |
+| **Advanced › Request body** | `{"ref":"main"}` |
+
+Save, then **Test run**. `204 No Content` means it worked, and a new run appears in your Actions tab within seconds, shown as **Manually run by** you.
+
+| Test run shows | Fix |
+|---|---|
+| `401 Unauthorized` | Token wrong or not pasted fully; check the `Bearer ` prefix, or regenerate the token |
+| `403 Forbidden` | Token lacks **Actions: Read and write**, or doesn't include this repo |
+| `404 Not Found` | Check `YOUR_USERNAME`, `YOUR_REPO` and the file name `changelog.yml` in the URL |
+| `422 Unprocessable Entity` | Body must be exactly `{"ref":"main"}` (or your default branch name) |
+
+When the token expires, runs from cron-job.org stop with `401`. Regenerate the token and paste the new one into the `Authorization` header.
 
 ---
 
@@ -388,7 +433,7 @@ If several versions piled up, each one gets its own message, oldest first. Named
 | **Switch a channel off** | Delete its secrets, or set `"enabled": false` in `config.json` |
 | **Renew the Figma token** | Create a new token (step 2) and replace the `FIGMA_TOKEN` secret |
 
-> On **public** repos GitHub disables scheduled workflows after 60 days without commits. Re-enable it in the Actions tab.
+> On **public** repos GitHub disables scheduled workflows after 60 days without commits. Re-enable it in the Actions tab. Runs started by [cron-job.org](#make-it-run-on-time-optional-recommended) keep working either way.
 
 ---
 
@@ -424,6 +469,7 @@ The run log (Actions › click a run › **Check Figma and post updates**) says 
 | `✗ Google Chat …: HTTP 400` | Card rejected | Open an issue with the log; other channels still post |
 | Red run, other channels still posted | One channel failed | It retries from the same version next hour; nothing is lost or doubled |
 | `Nothing new since the last run.` | No new Figma version | Save a version (⌘⌥S) |
+| No scheduled runs, or runs hours late | GitHub's schedule is best effort | Disable and re-enable the workflow, or [use cron-job.org](#make-it-run-on-time-optional-recommended) |
 
 ---
 
